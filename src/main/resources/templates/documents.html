@@ -62,8 +62,10 @@
                 <td th:text="${doc.category.name}"></td>
                 <td th:text="${doc.cluster != null} ? 'Cluster ' + ${doc.cluster} : 'Not Clustered'"></td>
                 <td>
+                    <a th:href="@{/documents/view/{id}(id=${doc.id})}" class="btn btn-link ">View</a>
                     <a th:href="@{/documents/edit/{id}(id=${doc.id})}" class="btn btn-link text-primary p-0">Edit</a>
                     <a th:href="@{/documents/delete/{id}(id=${doc.id})}" class="btn btn-link text-danger p-0 ms-2">Delete</a>
+
                 </td>
             </tr>
             </tbody>

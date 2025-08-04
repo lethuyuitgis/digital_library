@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.library.clustering.ClusteringService;
 import com.library.entity.Document;
+import com.library.repository.DocumentRepository;
 import com.library.service.CategoryService;
 import com.library.service.DocumentService;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,7 @@ public class DocumentController {
     private final DocumentService documentService;
     private final CategoryService categoryService;
     private final ClusteringService clusteringService;
+    private final DocumentRepository documentRepository;
     private Map<String, Long> convertClusterStatsToChartFormat(Map<Integer, Long> stats) {
         return stats.entrySet().stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -101,5 +103,12 @@ public class DocumentController {
     public String performClustering(@RequestParam int numClusters) {
         clusteringService.performClustering(numClusters);
         return "redirect:/documents";
+    }
+    @GetMapping("/view/{id}")
+    public String viewDocument(@PathVariable Long id, Model model) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+        model.addAttribute("document", document);
+        return "view-document";
     }
 }
