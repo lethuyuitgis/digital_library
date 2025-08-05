@@ -140,10 +140,17 @@
             const clusterStats = /*[[${clusterStatsJson}]]*/ '{}';
             const parsedStats = JSON.parse(clusterStats);
 
-            const labels = Object.keys(parsedStats);
-            const values = Object.values(parsedStats);
+            // Tạo mảng labels và values đồng bộ từ cùng keys
+            const entries = Object.entries(parsedStats).map(([k, v]) => ({
+                label: k === "-1" ? "Not Clustered" : "Cluster " + k,
+                value: v
+            }));
 
-            // Tạo màu khác nhau cho từng cluster
+            // Tách ra labels và values theo đúng thứ tự
+            const labels = entries.map(e => e.label);
+            const values = entries.map(e => e.value);
+
+            // Màu sắc
             const backgroundColors = labels.map((_, i) => `hsl(${i * 50}, 70%, 60%)`);
             const borderColors = labels.map((_, i) => `hsl(${i * 50}, 70%, 40%)`);
 
@@ -163,11 +170,21 @@
                 options: {
                     scales: {
                         y: { beginAtZero: true }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.parsed.y} documents`;
+                                }
+                            }
+                        }
                     }
                 }
             });
             /*]]>*/
         </script>
+
 
 
 
