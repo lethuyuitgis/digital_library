@@ -140,7 +140,7 @@
             /*<![CDATA[*/
             const clusterStats = /*[[${clusterStatsJson}]]*/ '{}';
             const parsedStats = JSON.parse(clusterStats);
-
+            console.log("Cluster Stats:", clusterStats);
             // Tạo mảng labels và values đồng bộ từ cùng keys
             const entries = Object.entries(parsedStats).map(([k, v]) => ({
                 label: k === "-1" ? "Not Clustered" : "Cluster " + k,

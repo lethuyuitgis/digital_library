@@ -26,15 +26,6 @@ public class DocumentController {
     private final CategoryService categoryService;
     private final ClusteringService clusteringService;
     private final DocumentRepository documentRepository;
-    private Map<String, Long> convertClusterStatsToChartFormat(Map<Integer, Long> stats) {
-        return stats.entrySet().stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        e -> e.getKey() == -1 ? "Not Clustered" : "Cluster " + e.getKey(),
-                        java.util.Map.Entry::getValue,
-                        (a, b) -> b,
-                        java.util.LinkedHashMap::new
-                ));
-    }
 
     @GetMapping
     public String listDocuments(Model model,

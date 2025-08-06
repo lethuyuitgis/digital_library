@@ -48,13 +48,28 @@ public class DocumentServiceImpl implements DocumentService {
         return documentRepository.findByCluster(cluster, pageable);
     }
 
+    @Override
     public Map<Integer, Long> getClusterStatistics() {
-        return documentRepository.findAll().stream()
+        List<Document> documents = documentRepository.findAll();
+
+        // Group by cluster (null = -1)
+        Map<Integer, Long> stats = documents.stream()
                 .collect(Collectors.groupingBy(
                         doc -> doc.getCluster() != null ? doc.getCluster() : -1,
                         Collectors.counting()
                 ));
+
+        // Optional: Sort by cluster ID
+        return stats.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        java.util.LinkedHashMap::new // keep order
+                ));
     }
+
 
     @Override
     public Page<Document> getSimilarDocuments(Long documentId, int topN, int page) {
