@@ -5,9 +5,12 @@ import com.library.repository.DocumentRepository;
 import com.library.service.DocumentService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -51,5 +54,27 @@ public class DocumentServiceImpl implements DocumentService {
                         doc -> doc.getCluster() != null ? doc.getCluster() : -1,
                         Collectors.counting()
                 ));
+    }
+
+    @Override
+    public Page<Document> getSimilarDocuments(Long documentId, int topN, int page) {
+        Document currentDoc = documentRepository.findById(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+        Integer currentCluster = currentDoc.getCluster();
+
+        if (currentCluster == null) {
+            return Page.empty(); // Trả về trang rỗng nếu không có cụm
+        }
+
+        Pageable pageable = PageRequest.of(page, topN);
+        Page<Document> documents = documentRepository.findByCluster(currentCluster, pageable);
+
+        // Lọc tài liệu hiện tại và xây dựng lại Page
+        List<Document> filteredContent = documents.getContent()
+                .stream()
+                .filter(doc -> !doc.getId().equals(documentId)) // Loại bỏ tài liệu hiện tại
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(filteredContent, pageable, documents.getTotalElements());
     }
 }

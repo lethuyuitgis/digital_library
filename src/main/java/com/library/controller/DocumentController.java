@@ -111,4 +111,24 @@ public class DocumentController {
         model.addAttribute("document", document);
         return "view-document";
     }
+
+    @GetMapping("/{id}/similar")
+    public String getSimilarDocuments(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            Model model) {
+
+        Page<Document> similarDocuments = documentService.getSimilarDocuments(id, size, page);
+
+        model.addAttribute("similarDocuments", similarDocuments.getContent());
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", similarDocuments.getTotalPages());
+        model.addAttribute("totalItems", similarDocuments.getTotalElements()); // cần cho hiển thị tổng số bản ghi
+        model.addAttribute("size", size); // để giữ dropdown chọn size
+        model.addAttribute("documentId", id); // cần cho pagination link
+
+        return "similar-documents";
+    }
+
 }

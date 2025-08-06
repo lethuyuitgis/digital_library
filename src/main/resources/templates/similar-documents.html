@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Similar Documents</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<!-- Navigation Bar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/documents">Documents</a>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<div class="container">
+    <h1 class="mb-4">Similar Documents</h1>
+
+    <!-- Similar Documents Table -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead class="table-light">
+            <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Cluster</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="doc : ${similarDocuments}">
+                <td th:text="${doc.title}"></td>
+                <td th:text="${doc.category.name}"></td>
+                <td th:text="${doc.cluster != null} ? 'Cluster ' + ${doc.cluster} : 'Not Clustered'"></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(similarDocuments)}">
+                <td colspan="3" class="text-center">No similar documents found.</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div th:if="${totalPages > 1}" class="d-flex justify-content-between align-items-center mt-4">
+        <!-- Page Size Dropdown -->
+        <form method="get" th:action="@{/documents/{id}/similar(id=${documentId})}">
+            <input type="hidden" name="page" th:value="${currentPage}" />
+            <label for="size">Items per page:</label>
+            <select name="size" id="size" class="form-select d-inline-block w-auto" onchange="this.form.submit()">
+                <option th:value="5" th:selected="${size == 5}">5</option>
+                <option th:value="10" th:selected="${size == 10}">10</option>
+                <option th:value="20" th:selected="${size == 20}">20</option>
+            </select>
+        </form>
+
+        <!-- Pagination Section -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mt-4 gap-3" th:if="${totalPages > 1}">
+            <!-- Left: Total items & Page navigation -->
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="text-muted">Total [[${totalItems}]] items</div>
+
+                <div class="btn-group" role="group">
+                    <a th:if="${currentPage > 0}"
+                       th:href="@{/documents/{id}/similar(id=${documentId}, page=${currentPage - 1}, size=${size})}"
+                       class="btn btn-outline-primary">&lt;</a>
+
+                    <span th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
+                <span class="px-1" th:if="${i == 0 || i == totalPages - 1 || (i >= currentPage - 1 && i <= currentPage + 1)}">
+                    <a th:href="@{/documents/{id}/similar(id=${documentId}, page=${i}, size=${size})}"
+                       th:text="${i + 1}"
+                       th:class="${i == currentPage} ? 'btn btn-primary' : 'btn btn-outline-primary'"></a>
+                </span>
+                <span class="px-2" th:if="${i == currentPage - 2 || i == currentPage + 2}">...</span>
+            </span>
+
+                    <a th:if="${currentPage < totalPages - 1}"
+                       th:href="@{/documents/{id}/similar(id=${documentId}, page=${currentPage + 1}, size=${size})}"
+                       class="btn btn-outline-primary">&gt;</a>
+                </div>
+            </div>
+
+            <!-- Page size selector -->
+            <div class="d-flex flex-wrap gap-3">
+                <form method="get" th:action="@{/documents/{id}/similar(id=${documentId})}" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="page" th:value="${currentPage}" />
+                    <select name="size" onchange="this.form.submit()" class="form-select">
+                        <option th:value="5" th:selected="${size == 5}">5 / page</option>
+                        <option th:value="10" th:selected="${size == 10}">10 / page</option>
+                        <option th:value="20" th:selected="${size == 20}">20 / page</option>
+                    </select>
+                </form>
+
+                <!-- Go to page -->
+                <form method="get" th:action="@{/documents/{id}/similar(id=${documentId})}" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="size" th:value="${size}" />
+                    <label class="form-label mb-0">Go to</label>
+                    <input type="number" name="page" min="1" th:max="${totalPages}" class="form-control" style="width: 80px;" />
+                    <button type="submit" class="btn btn-primary">Go</button>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- Info -->
+        <div class="text-muted">
+            Page <span th:text="${currentPage + 1}"></span> of <span th:text="${totalPages}"></span> |
+            Total: <span th:text="${totalItems}"></span> documents
+        </div>
+    </div>
+
+    <!-- No similar documents fallback -->
+    <div th:if="${totalPages <= 1 and #lists.isEmpty(similarDocuments)}" class="mt-4 text-center text-muted">
+        No similar documents available.
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

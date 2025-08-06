@@ -20,4 +20,6 @@ public interface DocumentService {
     Page<Document> getDocumentsByCluster(Integer cluster, Pageable pageable);
 
     Map<Integer, Long> getClusterStatistics();
+
+    Page<Document> getSimilarDocuments(Long documentId, int topN, int page);
 }
