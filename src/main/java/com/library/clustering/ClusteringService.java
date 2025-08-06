@@ -4,9 +4,13 @@ import com.library.entity.Document;
 import com.library.repository.DocumentRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-import smile.clustering.KMeans;
+import weka.clusterers.SimpleKMeans;
+import weka.core.*;
+import weka.filters.Filter;
+import weka.filters.unsupervised.attribute.StringToWordVector;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
@@ -14,98 +18,105 @@ import java.util.stream.Collectors;
 public class ClusteringService {
 
     private final DocumentRepository documentRepository;
-    private static final int MAX_DOCUMENTS = 300;
-    private static final int MAX_VOCAB_SIZE = 1000;
-    private static final int MIN_TERM_FREQ = 3;
 
-    public void performClustering(int numClusters) {
-        List<Document> documents = documentRepository.findAll()
-                .stream()
-                .limit(MAX_DOCUMENTS)
+    public void performClustering(int numClusters) throws Exception {
+        // Lấy danh sách tài liệu có nội dung
+        List<Document> documents = documentRepository.findAll().stream()
+                .filter(doc -> doc != null && doc.getContent() != null && !doc.getContent().trim().isEmpty())
+                .limit(1000)
                 .collect(Collectors.toList());
 
         if (documents.isEmpty()) return;
 
-        String[] texts = documents.stream()
-                .map(Document::getContent)
-                .toArray(String[]::new);
-        double[][] vectors = createTFIDFVectors(texts);
+        // Chuyển sang dữ liệu Weka
+        Instances data = convertToWekaInstances(documents);
+        if (data == null || data.numInstances() == 0) return;
 
-        KMeans kmeans = KMeans.fit(vectors, numClusters);
-        int[] labels = kmeans.y;
+        // Tiền xử lý: chuyển văn bản thành vector đặc trưng
+        StringToWordVector filter = new StringToWordVector();
+        filter.setInputFormat(data);
+        Instances filteredData = Filter.useFilter(data, filter);
+
+        // Thực hiện KMeans
+        SimpleKMeans kmeans = new SimpleKMeans();
+        kmeans.setNumClusters(numClusters);
+        kmeans.buildClusterer(filteredData);
+
+        // Gán nhãn cluster cho từng document
+        int[] labels = new int[filteredData.numInstances()];
+        for (int i = 0; i < filteredData.numInstances(); i++) {
+            labels[i] = kmeans.clusterInstance(filteredData.instance(i));
+        }
 
         for (int i = 0; i < documents.size(); i++) {
-            Document doc = documents.get(i);
-            doc.setCluster(labels[i]);
-            documentRepository.save(doc);
+            documents.get(i).setCluster(labels[i]);
         }
+        documentRepository.saveAll(documents);
+
+        // Tính Silhouette Score (tùy chọn)
+        double silhouetteScore = calculateSilhouetteScore(filteredData, labels, kmeans, numClusters);
+        System.out.println("Silhouette Score: " + silhouetteScore);
     }
 
-    private double[][] createTFIDFVectors(String[] texts) {
-        Map<String, Integer> globalFreq = new HashMap<>();
-        List<List<String>> tokenizedDocs = new ArrayList<>();
+    private Instances convertToWekaInstances(List<Document> documents) {
+        ArrayList<Attribute> attributes = new ArrayList<>();
+        attributes.add(new Attribute("content", (List<String>) null)); // text attribute
+        Instances data = new Instances("Documents", attributes, documents.size());
 
-        for (String text : texts) {
-            List<String> tokens = Arrays.stream(text.toLowerCase().split("\\s+"))
-                    .map(token -> token.replaceAll("[^a-zA-Z]", "")) // bỏ dấu câu
-                    .filter(token -> token.length() > 1) // bỏ token ngắn
-                    .toList();
-
-            for (String token : tokens) {
-                globalFreq.put(token, globalFreq.getOrDefault(token, 0) + 1);
-            }
-
-            tokenizedDocs.add(tokens);
+        for (Document doc : documents) {
+            DenseInstance instance = new DenseInstance(1);
+            instance.setValue(attributes.get(0), doc.getContent());
+            data.add(instance);
         }
 
-        // Chọn từ phổ biến nhất
-        List<String> vocabList = globalFreq.entrySet().stream()
-                .filter(e -> e.getValue() >= MIN_TERM_FREQ)
-                .sorted((a, b) -> b.getValue() - a.getValue())
-                .limit(MAX_VOCAB_SIZE)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+        return data;
+    }
 
-        Map<String, Integer> vocabIndex = new HashMap<>();
-        for (int i = 0; i < vocabList.size(); i++) {
-            vocabIndex.put(vocabList.get(i), i);
-        }
+    private double calculateSilhouetteScore(Instances data, int[] labels, SimpleKMeans kmeans, int numClusters) {
+        int n = data.numInstances();
+        double[] a = new double[n];
+        double[] b = new double[n];
 
-        int numDocs = tokenizedDocs.size();
-        int vocabSize = vocabList.size();
-        double[][] tfMatrix = new double[numDocs][vocabSize];
-        double[] docFreq = new double[vocabSize];
+        for (int i = 0; i < n; i++) {
+            int clusterI = labels[i];
+            double sumA = 0.0;
+            int countA = 0;
 
-        for (int i = 0; i < numDocs; i++) {
-            List<String> doc = tokenizedDocs.get(i);
-            Map<String, Long> termCounts = doc.stream()
-                    .filter(vocabIndex::containsKey)
-                    .collect(Collectors.groupingBy(s -> s, Collectors.counting()));
-            Set<String> seenTerms = new HashSet<>();
-
-            for (Map.Entry<String, Long> entry : termCounts.entrySet()) {
-                int index = vocabIndex.get(entry.getKey());
-                tfMatrix[i][index] = entry.getValue() / (double) doc.size();
-
-                if (seenTerms.add(entry.getKey())) {
-                    docFreq[index]++;
+            for (int j = 0; j < n; j++) {
+                if (i != j && labels[j] == clusterI) {
+                    double dist = kmeans.getDistanceFunction().distance(data.instance(i), data.instance(j));
+                    sumA += dist;
+                    countA++;
                 }
             }
-        }
+            a[i] = countA > 0 ? sumA / countA : 0.0;
 
-        double[] idf = new double[vocabSize];
-        for (int i = 0; i < vocabSize; i++) {
-            idf[i] = Math.log((double) numDocs / (1 + docFreq[i]));
-        }
-
-        double[][] tfidf = new double[numDocs][vocabSize];
-        for (int i = 0; i < numDocs; i++) {
-            for (int j = 0; j < vocabSize; j++) {
-                tfidf[i][j] = tfMatrix[i][j] * idf[j];
+            double minB = Double.MAX_VALUE;
+            for (int c = 0; c < numClusters; c++) {
+                if (c != clusterI) {
+                    double sumB = 0.0;
+                    int countB = 0;
+                    for (int j = 0; j < n; j++) {
+                        if (labels[j] == c) {
+                            double dist = kmeans.getDistanceFunction().distance(data.instance(i), data.instance(j));
+                            sumB += dist;
+                            countB++;
+                        }
+                    }
+                    if (countB > 0) {
+                        double avgB = sumB / countB;
+                        minB = Math.min(minB, avgB);
+                    }
+                }
             }
+            b[i] = minB != Double.MAX_VALUE ? minB : 0.0;
         }
 
-        return tfidf;
+        double totalSilhouette = 0.0;
+        for (int i = 0; i < n; i++) {
+            double s = (b[i] - a[i]) / Math.max(a[i], b[i]);
+            totalSilhouette += s;
+        }
+        return totalSilhouette / n;
     }
-
 }

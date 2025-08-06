@@ -92,9 +92,15 @@ public class DocumentController {
 
     @PostMapping("/cluster")
     public String performClustering(@RequestParam int numClusters) {
-        clusteringService.performClustering(numClusters);
+        try {
+            clusteringService.performClustering(numClusters);
+        } catch (Exception e) {
+            e.printStackTrace(); // Hoặc log lỗi
+            // Có thể chuyển hướng kèm thông báo lỗi nếu muốn
+        }
         return "redirect:/documents";
     }
+
     @GetMapping("/view/{id}")
     public String viewDocument(@PathVariable Long id, Model model) {
         Document document = documentRepository.findById(id)
