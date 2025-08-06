@@ -43,7 +43,6 @@ public class ClusteringService {
         filter.setOutputWordCounts(true);
         filter.setInputFormat(data);
 
-
         Instances filteredData = Filter.useFilter(data, filter);
 
         // B4: KMeans clustering
