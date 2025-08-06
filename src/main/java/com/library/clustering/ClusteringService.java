@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import weka.clusterers.SimpleKMeans;
 import weka.core.*;
+import weka.core.stopwords.Rainbow;
 import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.StringToWordVector;
 
@@ -20,7 +21,7 @@ public class ClusteringService {
     private final DocumentRepository documentRepository;
 
     public void performClustering(int numClusters) throws Exception {
-        // Lấy danh sách tài liệu có nội dung
+        // B1: Lọc tài liệu hợp lệ
         List<Document> documents = documentRepository.findAll().stream()
                 .filter(doc -> doc != null && doc.getContent() != null && !doc.getContent().trim().isEmpty())
                 .limit(1000)
@@ -28,21 +29,29 @@ public class ClusteringService {
 
         if (documents.isEmpty()) return;
 
-        // Chuyển sang dữ liệu Weka
+        // B2: Chuyển dữ liệu sang Weka Instances
         Instances data = convertToWekaInstances(documents);
         if (data == null || data.numInstances() == 0) return;
 
-        // Tiền xử lý: chuyển văn bản thành vector đặc trưng
+        // B3: Cấu hình vector hóa văn bản
         StringToWordVector filter = new StringToWordVector();
+        filter.setLowerCaseTokens(true);
+        filter.setStopwordsHandler(new Rainbow()); // Dùng danh sách stopword phổ biến
+        filter.setTFTransform(true);
+        filter.setIDFTransform(true);
+        filter.setWordsToKeep(1000);
+        filter.setOutputWordCounts(true);
         filter.setInputFormat(data);
+
+
         Instances filteredData = Filter.useFilter(data, filter);
 
-        // Thực hiện KMeans
+        // B4: KMeans clustering
         SimpleKMeans kmeans = new SimpleKMeans();
         kmeans.setNumClusters(numClusters);
         kmeans.buildClusterer(filteredData);
 
-        // Gán nhãn cluster cho từng document
+        // B5: Gán cluster cho từng tài liệu
         int[] labels = new int[filteredData.numInstances()];
         for (int i = 0; i < filteredData.numInstances(); i++) {
             labels[i] = kmeans.clusterInstance(filteredData.instance(i));
@@ -51,9 +60,17 @@ public class ClusteringService {
         for (int i = 0; i < documents.size(); i++) {
             documents.get(i).setCluster(labels[i]);
         }
+
         documentRepository.saveAll(documents);
 
-        // Tính Silhouette Score (tùy chọn)
+        // B6: Log số lượng mỗi cluster (để fix chart nếu cần)
+        for (int c = 0; c < numClusters; c++) {
+            int clusterIndex = c;
+            long count = documents.stream().filter(doc -> doc.getCluster() == clusterIndex).count();
+            System.out.println("Cluster " + c + ": " + count + " documents");
+        }
+
+        // B7: Tính silhouette score (tùy chọn)
         double silhouetteScore = calculateSilhouetteScore(filteredData, labels, kmeans, numClusters);
         System.out.println("Silhouette Score: " + silhouetteScore);
     }
