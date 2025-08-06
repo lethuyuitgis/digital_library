@@ -61,11 +61,11 @@
                 <td th:text="${doc.title}"></td>
                 <td th:text="${doc.category.name}"></td>
                 <td th:text="${doc.cluster != null} ? 'Cluster ' + ${doc.cluster} : 'Not Clustered'"></td>
-                <td>
-                    <a th:href="@{/documents/view/{id}(id=${doc.id})}" class="btn btn-link ">View</a>
-                    <a th:href="@{/documents/{id}/similar(id=${doc.id}, page=0)}" class="btn btn-link text-info p-0 ms-2">View Similar</a>
-                    <a th:href="@{/documents/edit/{id}(id=${doc.id})}" class="btn btn-link text-primary p-0">Edit</a>
-                    <a th:href="@{/documents/delete/{id}(id=${doc.id})}" class="btn btn-link text-danger p-0 ms-2">Delete</a>
+                <td class="d-flex flex-wrap gap-2">
+                    <a th:href="@{/documents/view/{id}(id=${doc.id})}" class="btn btn-sm btn-outline-dark">View</a>
+                    <a th:href="@{/documents/{id}/similar(id=${doc.id}, page=0)}" class="btn btn-sm btn-outline-info ">View Similar</a>
+                    <a th:href="@{/documents/edit/{id}(id=${doc.id})}" class="btn btn-sm btn-outline-primary">Edit</a>
+                    <a th:href="@{/documents/delete/{id}(id=${doc.id})}" class="btn btn-sm btn-outline-danger ">Delete</a>
 
                 </td>
             </tr>
