@@ -52,6 +52,14 @@ public class ClusteringService {
 
         // B5: Gán cluster cho từng tài liệu
         int[] labels = new int[filteredData.numInstances()];
+//        Gán cluster cho từng tài liệu (gán -1 nếu lỗi)
+        for (int i = 0; i < filteredData.numInstances(); i++) {
+            try {
+                labels[i] = kmeans.clusterInstance(filteredData.instance(i));
+            } catch (Exception e) {
+                labels[i] = -1; // Không phân cụm được
+            }
+        }
         for (int i = 0; i < filteredData.numInstances(); i++) {
             labels[i] = kmeans.clusterInstance(filteredData.instance(i));
         }
