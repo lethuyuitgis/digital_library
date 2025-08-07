@@ -21,22 +21,34 @@ public class ClusteringService {
     private final DocumentRepository documentRepository;
 
     public void performClustering(int numClusters) throws Exception {
-        // B1: Lọc tài liệu hợp lệ
-        List<Document> documents = documentRepository.findAll().stream()
+        // B1: Lấy toàn bộ tài liệu
+        List<Document> allDocuments = documentRepository.findAll();
+
+        // B2: Lọc tài liệu hợp lệ để xử lý (tối đa 1000)
+        List<Document> documents = allDocuments.stream()
                 .filter(doc -> doc != null && doc.getContent() != null && !doc.getContent().trim().isEmpty())
                 .limit(1000)
                 .collect(Collectors.toList());
 
+        // B3: Gán cluster = -1 cho các tài liệu không được xử lý
+        List<Document> unprocessedDocuments = allDocuments.stream()
+                .filter(doc -> !documents.contains(doc))
+                .collect(Collectors.toList());
+
+        for (Document doc : unprocessedDocuments) {
+            doc.setCluster(-1);
+        }
+
         if (documents.isEmpty()) return;
 
-        // B2: Chuyển dữ liệu sang Weka Instances
+        // B4: Chuyển dữ liệu sang Weka Instances
         Instances data = convertToWekaInstances(documents);
         if (data == null || data.numInstances() == 0) return;
 
-        // B3: Cấu hình vector hóa văn bản
+        // B5: Vector hóa văn bản
         StringToWordVector filter = new StringToWordVector();
         filter.setLowerCaseTokens(true);
-        filter.setStopwordsHandler(new Rainbow()); // Dùng danh sách stopword phổ biến
+        filter.setStopwordsHandler(new Rainbow());
         filter.setTFTransform(true);
         filter.setIDFTransform(true);
         filter.setWordsToKeep(1000);
@@ -45,39 +57,41 @@ public class ClusteringService {
 
         Instances filteredData = Filter.useFilter(data, filter);
 
-        // B4: KMeans clustering
+        // B6: Phân cụm bằng KMeans
         SimpleKMeans kmeans = new SimpleKMeans();
         kmeans.setNumClusters(numClusters);
         kmeans.buildClusterer(filteredData);
 
-        // B5: Gán cluster cho từng tài liệu
+        // B7: Gán nhãn cluster
         int[] labels = new int[filteredData.numInstances()];
-//        Gán cluster cho từng tài liệu (gán -1 nếu lỗi)
         for (int i = 0; i < filteredData.numInstances(); i++) {
             try {
                 labels[i] = kmeans.clusterInstance(filteredData.instance(i));
             } catch (Exception e) {
-                labels[i] = -1; // Không phân cụm được
+                labels[i] = -1;
             }
-        }
-        for (int i = 0; i < filteredData.numInstances(); i++) {
-            labels[i] = kmeans.clusterInstance(filteredData.instance(i));
         }
 
         for (int i = 0; i < documents.size(); i++) {
             documents.get(i).setCluster(labels[i]);
         }
 
+        // B8: Lưu kết quả vào database
         documentRepository.saveAll(documents);
+        documentRepository.saveAll(unprocessedDocuments);
 
-        // B6: Log số lượng mỗi cluster (để fix chart nếu cần)
+        // B9: Log số lượng mỗi cluster
         for (int c = 0; c < numClusters; c++) {
             int clusterIndex = c;
             long count = documents.stream().filter(doc -> doc.getCluster() == clusterIndex).count();
             System.out.println("Cluster " + c + ": " + count + " documents");
         }
 
-        // B7: Tính silhouette score (tùy chọn)
+        long unclustered = documents.stream().filter(doc -> doc.getCluster() == -1).count()
+                + unprocessedDocuments.size();
+        System.out.println("Unclustered: " + unclustered + " documents");
+
+        // B10: Tính Silhouette Score
         double silhouetteScore = calculateSilhouetteScore(filteredData, labels, kmeans, numClusters);
         System.out.println("Silhouette Score: " + silhouetteScore);
     }
@@ -100,8 +114,12 @@ public class ClusteringService {
         int n = data.numInstances();
         double[] a = new double[n];
         double[] b = new double[n];
+        int validCount = 0;
+        double totalSilhouette = 0.0;
 
         for (int i = 0; i < n; i++) {
+            if (labels[i] == -1) continue; // Bỏ qua bản ghi lỗi
+
             int clusterI = labels[i];
             double sumA = 0.0;
             int countA = 0;
@@ -134,13 +152,12 @@ public class ClusteringService {
                 }
             }
             b[i] = minB != Double.MAX_VALUE ? minB : 0.0;
-        }
 
-        double totalSilhouette = 0.0;
-        for (int i = 0; i < n; i++) {
             double s = (b[i] - a[i]) / Math.max(a[i], b[i]);
             totalSilhouette += s;
+            validCount++;
         }
-        return totalSilhouette / n;
+
+        return validCount > 0 ? totalSilhouette / validCount : 0.0;
     }
 }
